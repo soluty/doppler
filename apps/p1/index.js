@@ -1,3 +1,3 @@
-console.log('=== Deploying P1 ===9')
+console.log('=== Deploying P1 ===10')
 console.log('VALUE_P1:', process.env.VALUE_P1 || 'Not set')
 console.log('Deployment completed for P1 at', new Date().toISOString())
