@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - master
+      - test
   workflow_dispatch:
 
 env:
@@ -43,6 +44,8 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.p1 == 'true' || github.event_name == 'workflow_dispatch'
     timeout-minutes: 10
+    environment: 
+      name: ${{ github.ref_name == 'main' && 'prod' || github.ref_name == 'master' && 'prod' || github.ref_name == 'test' && 'test' || 'dev' }}
 
     steps:
       - name: Checkout code
@@ -68,7 +71,7 @@ jobs:
       - name: Deploy P1
         working-directory: ./apps/p1
         run: |
-          doppler run --config prod --project=doppler_p1 -- pnpm run deploy
+          doppler run --config ${{ vars.DOPPLER_CONFIG || 'dev' }} --project=doppler_p1 -- pnpm run deploy
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
 
@@ -83,6 +86,8 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.p2 == 'true' || github.event_name == 'workflow_dispatch'
     timeout-minutes: 10
+    environment: 
+      name: ${{ github.ref_name == 'main' && 'prod' || github.ref_name == 'master' && 'prod' || github.ref_name == 'test' && 'test' || 'dev' }}
 
     steps:
       - name: Checkout code
@@ -108,7 +113,7 @@ jobs:
       - name: Deploy P2
         working-directory: ./apps/p2
         run: |
-          doppler run --config prod --project=doppler_p2 -- pnpm run deploy
+          doppler run --config ${{ vars.DOPPLER_CONFIG || 'dev' }} --project=doppler_p2 -- pnpm run deploy
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
 
