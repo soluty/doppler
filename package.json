@@ -5,7 +5,5 @@
     "deploy:p1": "cd apps/p1 && node index.js",
     "deploy:p2": "cd apps/p2 && node index.js"
   },
-  "devDependencies": {
-    "pnpm": "^8.0.0"
-  }
+  "packageManager": "pnpm@10.18.0"
 }

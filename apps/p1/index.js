@@ -1,3 +1,4 @@
-console.log('=== Deploying P1 ===1');
-console.log('VALUE_P1:', process.env.VALUE_P1 || 'Not set');
-console.log('Deployment completed for P1 at', new Date().toISOString());
+console.log('=== Deploying P1 ===2')
+console.log('VALUE_P1:', process.env.VALUE_P1 || 'Not set')
+console.log('Deployment completed for P1 at', new Date().toISOString())
+
