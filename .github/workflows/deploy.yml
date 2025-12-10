@@ -57,10 +57,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
+          cache: 'pnpm'
 
       - name: Install Doppler CLI
         uses: dopplerhq/cli-action@v3
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Deploy P1
         working-directory: ./apps/p1
@@ -87,15 +90,20 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
+        with:
+          version: "10.18.0"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
+          cache: 'pnpm'
 
       - name: Install Doppler CLI
         uses: dopplerhq/cli-action@v3
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Deploy P2
         working-directory: ./apps/p2
