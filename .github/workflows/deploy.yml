@@ -65,7 +65,7 @@ jobs:
       - name: Deploy P1
         working-directory: ./apps/p1
         run: |
-          doppler run -- pnpm run deploy
+          doppler run --project=doppler_p1 -- pnpm run deploy
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
 
@@ -100,7 +100,7 @@ jobs:
       - name: Deploy P2
         working-directory: ./apps/p2
         run: |
-          doppler run -- pnpm run deploy
+          doppler run --project=doppler_p2 -- pnpm run deploy
         env:
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
 
