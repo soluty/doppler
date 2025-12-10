@@ -1,0 +1,179 @@
+name: Deploy to Cloudflare
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "22"
+
+jobs:
+  # 检测哪些应用需要部署
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      p1: ${{ steps.filter.outputs.p1 }}
+      p2: ${{ steps.filter.outputs.p2 }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Detect file changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            p1:
+              - 'apps/p1/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+            p2:
+              - 'apps/p2/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+
+  # 部署 P1 应用
+  deploy-p1:
+    name: Deploy P1 App
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.p1 == 'true' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install Doppler CLI
+        uses: dopplerhq/cli-action@v3
+
+      - name: Deploy P1
+        working-directory: ./apps/p1
+        run: |
+          doppler run -- pnpm run deploy
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+
+      - name: Deploy notification
+        if: success()
+        run: echo "✅ P1 app deployed successfully!"
+
+  # 部署 P2 应用
+  deploy-p2:
+    name: Deploy P2 App
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.p2 == 'true' || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install Doppler CLI
+        run: |
+          sudo apt-get update && sudo apt-get install -y apt-transport-https ca-certificates curl gnupg
+          curl -sLf --retry 3 --tlsv1.2 --proto "=https" 'https://packages.doppler.com/public/cli/gpg.DE2A7741A397C129.key' | sudo apt-key add -
+          echo "deb https://packages.doppler.com/public/cli/deb/ubuntu any-version main" | sudo tee /etc/apt/sources.list.d/doppler-cli.list
+          sudo apt-get update && sudo apt-get install -y doppler
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Deploy P2
+        working-directory: ./apps/p2
+        run: |
+          doppler run -- pnpm run deploy
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+
+      - name: Deploy notification
+        if: success()
+        run: echo "✅ P2 app deployed successfully!"
+
+  # 部署完成通知
+  notify:
+    name: Deployment Summary
+    runs-on: ubuntu-latest
+    needs: [detect-changes, deploy-p1, deploy-p2]
+    if: always()
+    steps:
+      - name: Send email notification
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: "Deployment Summary - ${{ github.repository }}"
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
+          from: "GitHub Actions <${{ secrets.EMAIL_USERNAME }}>"
+          html_body: |
+            <h2>🚀 Deployment Summary</h2>
+            <table border="1" style="border-collapse: collapse;">
+              <tr>
+                <th style="padding: 8px;">Application</th>
+                <th style="padding: 8px;">Status</th>
+              </tr>
+              <tr>
+                <td style="padding: 8px;">P1 App</td>
+                <td style="padding: 8px;">
+                  ${{ if eq(needs.deploy-p1.result, 'success') }}✅ Deployed${{ else }}
+                  ${{ if eq(needs.deploy-p1.result, 'skipped') }}⏭️ Skipped (No changes)${{ else }}
+                  ${{ if eq(needs.deploy-p1.result, 'failure') }}❌ Failed${{ else }}❓ Unknown${{ endif }}${{ endif }}${{ endif }}
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 8px;">P2 App</td>
+                <td style="padding: 8px;">
+                  ${{ if eq(needs.deploy-p2.result, 'success') }}✅ Deployed${{ else }}
+                  ${{ if eq(needs.deploy-p2.result, 'skipped') }}⏭️ Skipped (No changes)${{ else }}
+                  ${{ if eq(needs.deploy-p2.result, 'failure') }}❌ Failed${{ else }}❓ Unknown${{ endif }}${{ endif }}${{ endif }}
+                </td>
+              </tr>
+            </table>
+            <p><strong>Commit:</strong> ${{ github.sha }}</p>
+            <p><strong>Branch:</strong> ${{ github.ref_name }}</p>
+            <p><strong>Triggered by:</strong> ${{ github.event_name }}</p>
+
+      - name: Summary
+        run: |
+          echo "### 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Application | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------------|--------|" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.deploy-p1.result }}" == "success" ]; then
+            echo "| P1 App | ✅ Deployed |" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.deploy-p1.result }}" == "skipped" ]; then
+            echo "| P1 App | ⏭️ Skipped (No changes) |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| P1 App | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.deploy-p2.result }}" == "success" ]; then
+            echo "| P2 App | ✅ Deployed |" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.deploy-p2.result }}" == "skipped" ]; then
+            echo "| P2 App | ⏭️ Skipped (No changes) |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| P2 App | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          fi
